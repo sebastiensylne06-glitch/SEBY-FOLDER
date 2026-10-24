@@ -1,84 +1,187 @@
 name: Build SEBY FOLDER APK
 
 on:
-workflow_dispatch:
-push:
-branches: [main]
-paths:
-- 'android/**'
-- '.github/workflows/android.yml'
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'android/**'
+      - '.github/workflows/android.yml'
 
 permissions:
-contents: read
+  contents: read
 
 jobs:
-build:
-runs-on: ubuntu-latest
+  build:
+    runs-on: ubuntu-latest
 
-steps:
-  - name: Get project files
-    uses: actions/checkout@v4
+    steps:
+      - name: Get project files
+        uses: actions/checkout@v4
 
-  - name: Set up Java
-    uses: actions/setup-java@v4
-    with:
-      distribution: temurin
-      java-version: '17'
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
 
-  - name: Locate Android Gradle project
-    id: locate
-    shell: bash
-    run: |
-      echo "Repository root:"
-      pwd
-      echo "Searching for Gradle settings files..."
-      find . -type f \( -name settings.gradle -o -name settings.gradle.kts \) \
-        -not -path './.git/*' -print
+      - name: Locate Android Gradle project
+        id: locate
+        shell: bash
+        run: |
+          echo "Searching for settings.gradle..."
+          find . -type f \( \
+            -name settings.gradle -o \
+            -name settings.gradle.kts \
+          \) -not -path './.git/*' -print
 
-      PROJECT_DIR=""
+          PROJECT_DIR=""
 
-      for FILE in \
-        ./android/settings.gradle \
-        ./android/settings.gradle.kts \
-        ./android/android/settings.gradle \
-        ./android/android/settings.gradle.kts \
-        ./android/android/android/settings.gradle \
-        ./android/android/android/settings.gradle.kts \
-        ./settings.gradle \
-        ./settings.gradle.kts
-      do
-        if [ -f "$FILE" ]; then
-          PROJECT_DIR="$(dirname "$FILE")"
-          break
-        fi
-      done
+          for FILE in \
+            ./android/android/settings.gradle \
+            ./android/android/settings.gradle.kts \
+            ./android/settings.gradle \
+            ./android/settings.gradle.kts \
+            ./settings.gradle \
+            ./settings.gradle.kts
+          do
+            if [ -f "$FILE" ]; then
+              PROJECT_DIR="$(dirname "$FILE")"
+              break
+            fi
+          done
 
-      if [ -z "$PROJECT_DIR" ]; then
-        echo "::error::No Android Gradle project found. Check the settings.gradle paths printed above."
-        exit 1
-      fi
+          if [ -z "$PROJECT_DIR" ]; then
+            echo "::error::settings.gradle was not found."
+            exit 1
+          fi
 
-      if [ ! -f "$PROJECT_DIR/app/build.gradle" ] && \
-         [ ! -f "$PROJECT_DIR/app/build.gradle.kts" ]; then
-        echo "::error::The project was found, but app/build.gradle or app/build.gradle.kts is missing."
-        exit 1
-      fi
+          echo "Project directory: $PROJECT_DIR"
 
-      echo "project_dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
-      echo "Android project found at: $PROJECT_DIR"
+          if [ ! -f "$PROJECT_DIR/build.gradle" ] && \
+             [ ! -f "$PROJECT_DIR/build.gradle.kts" ]; then
+            echo "::error::Root build.gradle is missing."
+            exit 1
+          fi
 
-  - name: Set up Gradle
-    uses: gradle/actions/setup-gradle@v4
-    with:
-      gradle-version: '8.9'
+          echo "project_dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
 
-  - name: Build debug APK
-    working-directory: ${{ steps.locate.outputs.project_dir }}
-    run: gradle assembleDebug
+      - name: Prepare Android app module
+        working-directory: ${{ steps.locate.outputs.project_dir }}
+        shell: bash
+        run: |
+          if [ ! -f app/build.gradle ] && \
+             [ ! -f app/build.gradle.kts ]; then
 
-  - name: Upload APK
-    uses: actions/upload-artifact@v4
-    with:
-      name: SEBY-FOLDER-APK
-      path: ${{ steps.locate.outputs.project_dir }}/app/build/outputs/apk/debug/*.apk
-      if-no-files-found: error
+            echo "Creating missing app module..."
+
+            mkdir -p app/src/main/java/com/seby/folder
+            mkdir -p app/src/main/res/values
+
+            cat > app/build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application'
+          }
+
+          android {
+              namespace 'com.seby.folder'
+              compileSdk 35
+
+              defaultConfig {
+                  applicationId 'com.seby.folder'
+                  minSdk 23
+                  targetSdk 35
+                  versionCode 1
+                  versionName '1.0'
+              }
+          }
+          EOF
+
+            cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <application
+                  android:allowBackup="true"
+                  android:label="SEBY FOLDER"
+                  android:theme="@android:style/Theme.Material.Light.NoActionBar">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+            cat > app/src/main/java/com/seby/folder/MainActivity.java <<'EOF'
+          package com.seby.folder;
+
+          import android.app.Activity;
+          import android.os.Bundle;
+          import android.graphics.Color;
+          import android.view.Gravity;
+          import android.widget.LinearLayout;
+          import android.widget.TextView;
+
+          public class MainActivity extends Activity {
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+
+                  LinearLayout layout = new LinearLayout(this);
+                  layout.setOrientation(LinearLayout.VERTICAL);
+                  layout.setGravity(Gravity.CENTER);
+                  layout.setBackgroundColor(Color.rgb(12, 18, 35));
+
+                  TextView title = new TextView(this);
+                  title.setText("SEBY FOLDER");
+                  title.setTextColor(Color.WHITE);
+                  title.setTextSize(30);
+                  title.setGravity(Gravity.CENTER);
+
+                  TextView subtitle = new TextView(this);
+                  subtitle.setText("Bienvenue dans SEBY FOLDER");
+                  subtitle.setTextColor(Color.LTGRAY);
+                  subtitle.setTextSize(16);
+                  subtitle.setGravity(Gravity.CENTER);
+
+                  layout.addView(title);
+                  layout.addView(subtitle);
+                  setContentView(layout);
+              }
+          }
+          EOF
+          fi
+
+          if [ ! -f app/build.gradle ] && \
+             [ ! -f app/build.gradle.kts ]; then
+            echo "::error::App module could not be prepared."
+            exit 1
+          fi
+
+          if ! grep -Eq 'include[ (].*app|include.*:app' settings.gradle settings.gradle.kts 2>/dev/null; then
+            if [ -f settings.gradle ]; then
+              echo "include ':app'" >> settings.gradle
+            elif [ -f settings.gradle.kts ]; then
+              echo 'include(":app")' >> settings.gradle.kts
+            fi
+          fi
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Build debug APK
+        working-directory: ${{ steps.locate.outputs.project_dir }}
+        run: gradle assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: SEBY-FOLDER-APK
+          path: ${{ steps.locate.outputs.project_dir }}/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
