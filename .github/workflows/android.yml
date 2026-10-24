@@ -39,13 +39,17 @@ jobs:
           PROJECT_DIR=""
 
           for FILE in \
-            ./android/android/settings.gradle \
-            ./android/android/settings.gradle.kts \
-            ./android/settings.gradle \
-            ./android/settings.gradle.kts \
-            ./settings.gradle \
-            ./settings.gradle.kts
-          do
+  ./.github/workflows/android/android/settings.gradle \
+  ./.github/workflows/android/android/settings.gradle.kts \
+  ./.github/workflows/android/settings.gradle \
+  ./.github/workflows/android/settings.gradle.kts \
+  ./android/android/settings.gradle \
+  ./android/android/settings.gradle.kts \
+  ./android/settings.gradle \
+  ./android/settings.gradle.kts \
+  ./settings.gradle \
+  ./settings.gradle.kts
+do
             if [ -f "$FILE" ]; then
               PROJECT_DIR="$(dirname "$FILE")"
               break
